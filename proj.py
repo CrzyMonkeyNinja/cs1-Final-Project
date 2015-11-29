@@ -20,6 +20,90 @@ height = 800
 screen = rw.newDisplay(width, height, name)
 
 
+def detLegs(hyp, ang, X = 0, Y = 0):
+
+    # determines the length of the legs of a right triangle based on
+    # the "ang" angle and the "hyp" hypotenuse and adds them to
+    # existing X and Y values
+
+    print("ang:", ang)
+
+    if ang == 0:
+        X = X
+        Y -= hyp
+
+        print("X = X")
+        print("Y +=", hyp)
+
+    elif ang == 180:
+        X = X
+        Y += hyp
+
+        print("X = X")
+        print("Y -=", hyp)
+
+    elif ang == 90:
+        X += hyp
+        Y = Y
+
+        print("X +=", hyp)
+        print("Y = Y")
+
+    elif ang == 270:
+        X -= hyp
+        Y = Y
+
+        print("X -=", hyp)
+        print("Y = Y")
+
+    elif ang > 0 and ang < 90:
+
+        ang = math.radians(90 - ang)
+
+        X += hyp * math.cos(ang)
+        Y -= hyp * math.sin(ang)
+
+        print("X +=", (hyp*(math.cos(ang))) )
+        print("Y +=", (hyp*(math.sin(ang))) )
+
+    elif ang > 90 and ang < 180:
+
+        ang = math.radians(ang - 90)
+
+        X += hyp * math.cos(ang)
+        Y += hyp * math.sin(ang)
+
+        print("X +=", (hyp*(math.cos(ang))) )
+        print("Y -=", (hyp*(math.sin(ang))) )
+
+    elif ang > 180 and ang < 270:
+
+        ang = math.radians(270 - ang)
+
+        X -= hyp * math.cos(ang)
+        Y += hyp * math.sin(ang)
+
+        print("X -=", (hyp*(math.cos(ang))) )
+        print("Y -=", (hyp*(math.sin(ang))) )
+
+    elif ang > 270 and ang < 360:
+
+        ang = math.radians(ang - 270)
+
+        X -= hyp * math.cos(ang)
+        Y -= hyp * math.sin(ang)
+
+        print("X -=", (hyp*(math.cos(ang))) )
+        print("Y +=", (hyp*(math.sin(ang))) )
+
+    else:
+        print("\n!!!!!!!!!!\n")
+        print("Something is wrong in detLegs")
+        print("ang = ", ang)
+        print("\n!!!!!!!!!!\n")
+
+    return (X, Y)
+
 class State(object):
     def __init__(self, screen, entities):
         self.screen = screen
@@ -28,21 +112,18 @@ class State(object):
 
     def update(self):
         player = self.entities[0]
-        """
-        functDict = {"W": player.move(0, -5),
-                     "A": player.move(-5, 0),
-                     "S": player.move(0, 5),
-                     "D": player.move(5, 0)}
-        """
 
-        functDict = {119: (0, -5),
-                     97: (-5, 0),
-                     115: (0, 5),
-                     100: (5, 0)}
+        functDict = {119: (player.move, False, 5),
+                     97: (player.move, True, -5),
+                     115: (player.move, False, -5),
+                     100: (player.move, True, 5),
+                     113: (player.rotate, False, 5),
+                     101: (player.rotate, True, 5)}
 
         for key in self.keys:
             if key in functDict:
-                player.move(functDict[key])
+                # player.move(functDict[key])
+                functDict[key][0](functDict[key][1], functDict[key][2])
 
     def display(self):
         dw.fill(dw.black)
@@ -68,7 +149,7 @@ class State(object):
         if (event.type == pg.KEYDOWN):
             #self.keys.append(keyDict[event.key])
             self.keys.append(event.key)
-            print(event.key)
+            #print(event.key)
 
         elif (event.type == pg.KEYUP) and (event.key in self.keys):
             #self.keys.remove(keyDict[event.key])
@@ -95,25 +176,45 @@ class State(object):
 
 
 class Entity(object):
-    def __init__(self, Xcoord, Ycoord):
+    def __init__(self, Xcoord, Ycoord, screen):
         self.Xcoord = Xcoord
         self.Ycoord = Ycoord
         self.head = 0
         self.health = 100
+        self.detVerts()
 
     def disp(self, screen):
         # Draw a circle
         X = (self.Xcoord - 20)
         Y = (self.Ycoord - 20)
+
+        #arrowVerts = [[X, Y-20], [X+15, Y+20], [X, Y+15], [X-15, Y+20]]
         pg.draw.circle(screen, BLUE, [X, Y], 40)
-        pg.draw.polygon(screen, RED, [[X, Y - 20], [X + 15, Y + 20], [X, Y + 15], [X - 15, Y + 20]])
+        pg.draw.polygon(screen, RED, self.verts)
 
-    def move(self, change):
-        (Xmov, Ymov) = change
-        self.Xcoord += Xmov
-        self.Ycoord += Ymov
+    def move(self, axis, mod):
+        #(Xmov, Ymov) = change
+        if axis == True:
+            ang = (self.head + 90) % 360
+        else:
+            ang = self.head
 
-player = Entity(150, 150)
+        (Xmod, Ymod) = detLegs(mod, ang)
+        (self.Xcoord, self.Ycoord) = (self.Xcoord + round(Xmod), self.Ycoord + round(Ymod))
+        self.detVerts()
+
+    def rotate(self, clock, ang):
+        if clock == False:
+            ang = -ang
+        self.head = (self.head + ang) % 360
+        self.detVerts()
+
+    def detVerts(self):
+        X = (self.Xcoord - 20)
+        Y = (self.Ycoord - 20)
+        self.verts = [detLegs(20, self.head, X, Y), detLegs(25, (self.head + 135) % 360, X, Y), detLegs(15, (self.head + 180) % 360, X, Y), detLegs(25, (self.head + 225) % 360, X, Y)]
+
+player = Entity(150, 150, screen)
 state = State(screen, [player])
 
 state.run()
