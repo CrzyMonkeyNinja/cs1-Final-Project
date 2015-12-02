@@ -12,12 +12,47 @@ WHITE = (255, 255, 255)
 BLUE = (0, 0, 255)
 GREEN = (0, 255, 0)
 RED = (255, 0, 0)
+VISOR = (170, 170, 170)
+HELM = (150, 150, 150)
+TORSO = (100, 100, 100)
+SHIELD = (174, 88, 11)
 
 # Initialize world
 name = "proj"
 width = 1200
 height = 800
 screen = rw.newDisplay(width, height, name)
+
+target1 = dw.loadImage("target1.png")
+target2 = dw.loadImage("target2.png")
+target3 = dw.loadImage("target3.png")
+target4 = dw.loadImage("target4.png")
+target5 = dw.loadImage("target5.png")
+
+
+class Target(object):
+    def __init__(self, X, Y, screen):
+        self.Xcoord = X
+        self.Ycoord = Y
+        self.health = 100
+        self.alive = True
+
+    def disp(self, screen):
+        if self.health >= 80:
+            image = target1
+        elif self.health >= 60:
+            image = target2
+        elif self.health >= 40:
+            image = target3
+        elif self.health >= 20:
+            image = target4
+        elif self.health >= 0:
+            image = target5
+        else:
+            self.alive = False
+
+        if self.alive is True:
+            dw.draw(image, (self.Xcoord, self.Ycoord))
 
 
 def detLegs(hyp, ang, X=0, Y=0):
@@ -106,8 +141,10 @@ class State(object):
         self.screen = screen
         self.entities = entities
         self.keys = []
+        self.count = 0
 
     def update(self):
+        self.count += 1
         player = self.entities[0]
 
         functDict = {119: (player.move, False, 5),    # W
@@ -137,6 +174,9 @@ class State(object):
             player.block = False
             player.brace = False
             # player.rotVerts()
+
+        if (self.count % 10) == 0:
+            self.entities[1].health -= 1
 
     def display(self):
         dw.fill(dw.black)
@@ -190,7 +230,7 @@ class State(object):
         pg.quit()
 
 
-class Entity(object):
+class Player(object):
     def __init__(self, Xcoord, Ycoord, screen):
         self.Xcoord = Xcoord
         self.Ycoord = Ycoord
@@ -204,13 +244,14 @@ class Entity(object):
 
     def disp(self, screen):
         # Draw a circle
-        X = (self.Xcoord - 20)
-        Y = (self.Ycoord - 20)
+        X = (self.Xcoord - 15)
+        Y = (self.Ycoord - 15)
 
         # arrowVerts = [[X, Y-20], [X+15, Y+20], [X, Y+15], [X-15, Y+20]]
-        pg.draw.circle(screen, BLUE, [X, Y], 40)
-        pg.draw.polygon(screen, RED, self.arrowVerts)
-        pg.draw.polygon(screen, WHITE, self.shieldVerts)
+        pg.draw.circle(screen, TORSO, [X, Y], 30)
+        pg.draw.circle(screen, HELM, [X, Y], 20)
+        pg.draw.polygon(screen, SHIELD, self.shieldVerts)
+        pg.draw.polygon(screen, VISOR, self.arrowVerts)
 
     def move(self, axis, mod):
         # (Xmov, Ymov) = change
@@ -219,11 +260,22 @@ class Entity(object):
         else:
             ang = self.head
 
+        if self.brace is True:
+            mod = 0
+        elif self.block is True:
+            mod = mod // 2
+
         (Xmod, Ymod) = detLegs(mod, ang)
         (self.Xcoord, self.Ycoord) = (self.Xcoord + round(Xmod), self.Ycoord + round(Ymod))
         self.detVerts()
 
     def rotate(self, clock, ang):
+        if self.brace is True:
+            ang = randint(0, 1)
+            shieldSpace = 40
+        elif self.block is True:
+            ang = ang // 2
+
         if clock is False:
             ang = -ang
         self.head = (self.head + ang) % 360
@@ -233,7 +285,8 @@ class Entity(object):
         pass
 
     def rotVerts(self):
-        self.locArrowVerts = [detLegs(20, self.head), detLegs(25, (self.head + 135) % 360), detLegs(15, (self.head + 180) % 360), detLegs(25, (self.head + 225) % 360)]
+        (helmX, helmY) = detLegs(25, self.head)
+        self.locArrowVerts = [detLegs(15, self.head, helmX, helmY), detLegs(25, (self.head + 135) % 360, helmX, helmY), detLegs(10, (self.head + 180) % 360, helmX, helmY), detLegs(25, (self.head + 225) % 360, helmX, helmY)]
 
         if self.brace is False:
             shieldSpace = 40
@@ -241,7 +294,7 @@ class Entity(object):
             shieldSpace = 50
 
         if (self.block is True) or (self.brace is True):
-            self.shieldHead = self.head
+            self.shieldHead = (self.head - 5) % 360
             print("iz tru, shieldHead =", self.shieldHead, "head =", self.head)
         else:
             self.shieldHead = (self.head + 300) % 360
@@ -253,8 +306,8 @@ class Entity(object):
         self.detVerts()
 
     def detVerts(self):
-        X = (self.Xcoord - 20)
-        Y = (self.Ycoord - 20)
+        X = (self.Xcoord - 15)
+        Y = (self.Ycoord - 15)
         self.arrowVerts = handleVerts(X, Y, self.locArrowVerts)
         self.shieldVerts = handleVerts(X, Y, self.locShieldVerts)
 
@@ -265,7 +318,9 @@ def handleVerts(X, Y, local):
         newVerts.append((vert[0] + X, vert[1] + Y))
     return newVerts
 
-player = Entity(150, 150, screen)
-state = State(screen, [player])
+
+player = Player(150, 150, screen)
+target = Target(500, 500, screen)
+state = State(screen, [player, target])
 
 state.run()
