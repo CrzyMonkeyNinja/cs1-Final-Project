@@ -171,9 +171,23 @@ class State(object):
             player.brace = True
             player.rotVerts()
         else:
+            if (player.block is True) or (player.brace is True):
+                player.needRot = True
             player.block = False
             player.brace = False
             # player.rotVerts()
+
+        if (107 in self.keys) and (32 not in self.keys) and (99 not in self.keys):
+            player.slashDo = True
+            player.slash([])
+        else:
+            if player.slashDo is True:
+                player.needRot = True
+            player.slashDo = False
+
+        if player.needRot is True:
+            player.rotVerts()
+            player.needRot = False
 
         if (self.count % 10) == 0:
             self.entities[1].health -= 1
@@ -236,9 +250,13 @@ class Player(object):
         self.Ycoord = Ycoord
         self.head = 0
         self.health = 100
+        self.needRot = False
         self.block = False
         self.brace = False
-        self.shieldHead = self.head + 315 % 360
+        self.slashDo = False
+        self.slashCount = 0
+        self.shieldHead = self.head + 300 % 360
+        self.swordHead = self.head + 15 % 360
         self.rotVerts()
         self.detVerts()
 
@@ -251,7 +269,9 @@ class Player(object):
         pg.draw.circle(screen, TORSO, [X, Y], 30)
         pg.draw.circle(screen, HELM, [X, Y], 20)
         pg.draw.polygon(screen, SHIELD, self.shieldVerts)
-        pg.draw.polygon(screen, VISOR, self.arrowVerts)
+        pg.draw.polygon(screen, HELM, self.swordVerts)
+        pg.draw.polygon(screen, TORSO, self.hiltVerts)
+        pg.draw.polygon(screen, VISOR, self.helmVerts)
 
     def move(self, axis, mod):
         # (Xmov, Ymov) = change
@@ -282,11 +302,27 @@ class Player(object):
         self.rotVerts()
 
     def slash(self, targets):
-        pass
+        X = (self.Xcoord - 15)
+        Y = (self.Ycoord - 15)
+        print(self.slashCount)
+        slashRad = math.radians(self.slashCount * 12)
+
+        self.swordHead = (self.head + 40 + (- math.cos(slashRad) * 40)) % 360
+        (swordX, swordY) = detLegs(35, self.swordHead)
+
+        self.locSwordVerts = constructVerts(self.swordHead, ((35, 0), (20, 15), (5, 90), (5, 270), (20, 345)))
+        self.locHiltVerts = constructVerts(self.swordHead, ((15, 85), (15, 95), (15, 265), (15, 275)))
+
+        self.locSwordVerts = shiftVerts(self.locSwordVerts, swordX, swordY)
+        self.locHiltVerts = shiftVerts(self.locHiltVerts, swordX, swordY)
+        self.swordVerts = shiftVerts(self.locSwordVerts, X, Y)
+        self.hiltVerts = shiftVerts(self.locHiltVerts, X, Y)
+
+        self.slashCount += 1
 
     def rotVerts(self):
         (helmX, helmY) = detLegs(25, self.head)
-        self.locArrowVerts = [detLegs(15, self.head, helmX, helmY), detLegs(25, (self.head + 135) % 360, helmX, helmY), detLegs(10, (self.head + 180) % 360, helmX, helmY), detLegs(25, (self.head + 225) % 360, helmX, helmY)]
+        self.locHelmVerts = constructVerts(self.head, ((15, 0), (25, 135), (10, 180), (25, 225)))
 
         if self.brace is False:
             shieldSpace = 40
@@ -295,24 +331,51 @@ class Player(object):
 
         if (self.block is True) or (self.brace is True):
             self.shieldHead = (self.head - 5) % 360
-            print("iz tru, shieldHead =", self.shieldHead, "head =", self.head)
+            self.swordHead = (self.head + 60) % 360
+            # print("iz tru, shieldHead =", self.shieldHead, "head =", self.head)
         else:
             self.shieldHead = (self.head + 300) % 360
-            print("iz false, shieldHead =", self.shieldHead, "head =", self.head)
+            self.swordHead = (self.head + 50) % 360
+            # print("iz false, shieldHead =", self.shieldHead, "head =", self.head)
         (shieldX, shieldY) = detLegs(shieldSpace, self.shieldHead)
 
-        self.locShieldVerts = [detLegs(45, (self.shieldHead + 85) % 360, shieldX, shieldY), detLegs(45, (self.shieldHead + 95) % 360, shieldX, shieldY), detLegs(45, (self.shieldHead + 265) % 360, shieldX, shieldY), detLegs(45, (self.shieldHead + 275) % 360, shieldX, shieldY)]
+        self.locShieldVerts = constructVerts(self.shieldHead, ((45, 85), (45, 95), (45, 265), (45, 275)))
+
+
+        #self.swordHead = (self.head + 40) % 360
+        # print("istruiztru, swordHead =", self.swordHead, "head =", self.head)
+        (swordX, swordY) = detLegs(35, self.swordHead)
+
+        self.locSwordVerts = constructVerts(self.swordHead, ((35, 0), (20, 15), (5, 90), (5, 270), (20, 345)))
+        self.locHiltVerts = constructVerts(self.swordHead, ((15, 85), (15, 95), (15, 265), (15, 275)))
+
+        self.locHelmVerts = shiftVerts(self.locHelmVerts, helmX, helmY)
+        self.locShieldVerts = shiftVerts(self.locShieldVerts, shieldX, shieldY)
+        self.locSwordVerts = shiftVerts(self.locSwordVerts, swordX, swordY)
+        self.locHiltVerts = shiftVerts(self.locHiltVerts, swordX, swordY)
 
         self.detVerts()
 
     def detVerts(self):
         X = (self.Xcoord - 15)
         Y = (self.Ycoord - 15)
-        self.arrowVerts = handleVerts(X, Y, self.locArrowVerts)
-        self.shieldVerts = handleVerts(X, Y, self.locShieldVerts)
+        self.helmVerts = shiftVerts(self.locHelmVerts, X, Y)
+        self.shieldVerts = shiftVerts(self.locShieldVerts, X, Y)
+        self.swordVerts = shiftVerts(self.locSwordVerts, X, Y)
+        self.hiltVerts = shiftVerts(self.locHiltVerts, X, Y)
 
 
-def handleVerts(X, Y, local):
+def constructVerts(base, mods):
+    # print("mods:", mods)
+    vertList = []
+    for pair in mods:
+        vertList.append(detLegs(pair[0], (base + pair[1]) % 360))
+    # print(vertList)
+    return vertList
+
+
+def shiftVerts(local, X, Y):
+    # print("local:", local)
     newVerts = []
     for vert in local:
         newVerts.append((vert[0] + X, vert[1] + Y))
@@ -324,3 +387,28 @@ target = Target(500, 500, screen)
 state = State(screen, [player, target])
 
 state.run()
+
+"""
+        #self.slashCount = 15
+        print(self.slashCount)
+        X = (self.Xcoord - 15)
+        Y = (self.Ycoord - 15)
+        self.slashHead = (self.head + (35 - ((self.slashCount // 5) * 10))) % 360
+        #self.slashHead = (self.head + 40) % 360
+        slashVerts0 = ((0, 0), (20, 0), (35, 5), (30, 25), (28, 45), (25, 75), (10, 90))
+        slashVerts1 = ((0, 0), (20, 0), (35, 5), (35, 35), (35, 55), (35, 80), (20, 100))
+        slashVerts2 = ((0, 0), (20, 0), (35, 5), (40, 65), (40, 75), (40, 90), (25, 110))
+        slashVerts3 = ((0, 0), (20, 0), (35, 5), (35, 75), (40, 85), (45, 100), (40, 110))
+
+        slashDict = {0: slashVerts0,
+                     1: slashVerts1,
+                     2: slashVerts2,
+                     3: slashVerts3}
+
+        (slashX, slashY) = detLegs(35, self.slashHead)
+
+        locSlashVerts = constructVerts(self.slashHead, slashDict[self.slashCount // 5])
+        locSlashVerts = shiftVerts(locSlashVerts, slashX, slashY)
+        self.slashCount = (self.slashCount + 1) % 15
+        self.slashVerts = shiftVerts(locSlashVerts, X, Y)
+"""
