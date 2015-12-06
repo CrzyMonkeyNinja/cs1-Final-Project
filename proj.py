@@ -52,7 +52,70 @@ class Target(object):
             self.alive = False
 
         if self.alive is True:
-            dw.draw(image, (self.Xcoord, self.Ycoord))
+            pg.draw.circle(screen, BLUE, [self.Xcoord, self.Ycoord], 30)
+            #dw.draw(image, (self.Xcoord + 20, self.Ycoord + 20))
+
+
+def relHead(Xdif, Ydif):
+
+    # this gives the information regarding the relative facings of the object and a target object
+
+    if Xdif == 0 and Ydif > 0:  # on positive Y axis
+
+        targetDirect = 0
+        targetHeading = 0
+
+    elif Xdif == 0 and Ydif < 0:  # on negative Y axis
+
+        targetDirect = 0
+        targetHeading = 180
+
+    elif Xdif > 0 and Ydif == 0:  # on positive X axis
+
+        targetDirect = 0
+        targetHeading = 90
+
+    elif Xdif < 0 and Ydif == 0:  # on negative X axis
+
+        targetDirect = 0
+        # targetHeading = 270
+        targetHeading = -90
+
+    elif Xdif > 0 and Ydif > 0:  # if the target is in quadrent I
+
+        XoverY = (abs(Ydif) / abs(Xdif))  # generates the "opposite over adjacent for the arc tan to work with"
+        targetDirect = (math.atan(XoverY))  # generates the angle between the target's direction and 90 degrees East in radians
+        targetHeading = 90 - math.degrees(targetDirect)  # converts the angle to degrees and uses it to find the degrees from 0 degrees North to the tartet's direction
+
+    elif Xdif < 0 and Ydif > 0:  # quadrent II
+
+        XoverY = (abs(Ydif) / abs(Xdif))
+        targetDirect = (math.atan(XoverY))
+        # targetHeading = 270 + math.degrees((math.atan(XoverY)))
+        targetHeading = -(90 - math.degrees(targetDirect))
+
+    elif Xdif > 0 and Ydif < 0:  # quadrent IV
+
+        XoverY = (abs(Ydif) / abs(Xdif))
+        targetDirect = (math.atan(XoverY))
+        targetHeading = 90 + math.degrees(targetDirect)
+
+    elif Xdif < 0 and Ydif < 0:  # quadrent III
+
+        XoverY = (abs(Ydif) / abs(Xdif))
+        targetDirect = (math.atan(XoverY))
+        # targetHeading = 270 - math.degrees((math.atan(XoverY)))
+        targetHeading = -(90 + math.degrees(targetDirect))
+
+    elif Xdif == 0 and Ydif == 0:  # no distance between self and target
+
+        targetHeading = 0
+
+    else:
+        print("EVERYTHING EXPLODES")
+    print("targetHeading", targetHeading)
+
+    return targetHeading
 
 
 def detLegs(hyp, ang, X=0, Y=0):
@@ -133,7 +196,31 @@ def detLegs(hyp, ang, X=0, Y=0):
         print("ang = ", ang)
         print("\n!!!!!!!!!!\n")
 
-    return (X, Y)
+    return (round(X), round(Y))
+
+
+def getTargets(entities):
+    player = entities[0]
+    upperHitBox = (player.head + 35) % 360
+    lowerHitBox = (player.head - 35) % 360
+    targets = []
+
+    for ent in entities:
+        Xdif = (ent.Xcoord - player.Xcoord)
+        Ydif = (player.Ycoord - ent.Ycoord)
+        targetDirect = relHead(Xdif, Ydif)
+        print(targetDirect)
+        targetDist = distForm(Xdif, Ydif)
+
+        # firstly the target must be near enough to strike, secondly
+        # it must be within a certain cone of damage in front of the player
+        # if (targetDist < 100) and ((0 < targetDirect <
+        # upperHitBox)or(lowerHitBox < targetDirect < 360)):
+        if (targetDist < 100) and (abs(targetDirect) < 35):
+            targets.append(ent)
+            print(ent)
+            print("HITHITHITHITHITHITHITHITHIT")
+    return targets
 
 
 class State(object):
@@ -146,13 +233,14 @@ class State(object):
     def update(self):
         self.count += 1
         player = self.entities[0]
+        player.rotate()
 
         functDict = {119: (player.move, False, 5),    # W
                      97: (player.move, True, -5),     # A
                      115: (player.move, False, -5),   # S
-                     100: (player.move, True, 5),     # D
-                     106: (player.rotate, False, 5),  # J
-                     108: (player.rotate, True, 5)}   # L
+                     100: (player.move, True, 5)}     # D
+                     # 106: (player.rotate, False, 5),  # J
+                     # 108: (player.rotate, True, 5)}   # L
         """
         106:  # I
         107:  # K
@@ -179,18 +267,31 @@ class State(object):
 
         if (107 in self.keys) and (32 not in self.keys) and (99 not in self.keys):
             player.slashDo = True
-            player.slash([])
+
+            # Damage against entities is only considered in the middle
+            # of the sword's swing to prevent "spamming" and to ensure
+            # floating-point numbers aren't required to keep track of
+            # health that decreases by very small increments every frame
+            if (player.slashCount % 30) == 0:
+                targets = getTargets(self.entities)
+            else:
+                # targets = []
+                targets = getTargets(self.entities)
+
+            player.slash(targets)
         else:
             if player.slashDo is True:
                 player.needRot = True
             player.slashDo = False
+            player.slashCount = 0
 
         if player.needRot is True:
             player.rotVerts()
             player.needRot = False
 
         if (self.count % 10) == 0:
-            self.entities[1].health -= 1
+            # self.entities[1].health -= 1
+            pass
 
     def display(self):
         dw.fill(dw.black)
@@ -262,16 +363,17 @@ class Player(object):
 
     def disp(self, screen):
         # Draw a circle
-        X = (self.Xcoord - 15)
-        Y = (self.Ycoord - 15)
+        upperHitBox = (self.head + 35) % 360
+        lowerHitBox = (self.head - 35) % 360
 
-        # arrowVerts = [[X, Y-20], [X+15, Y+20], [X, Y+15], [X-15, Y+20]]
-        pg.draw.circle(screen, TORSO, [X, Y], 30)
-        pg.draw.circle(screen, HELM, [X, Y], 20)
+        pg.draw.circle(screen, TORSO, [self.Xcoord, self.Ycoord], 30)
+        pg.draw.circle(screen, HELM, [self.Xcoord, self.Ycoord], 20)
         pg.draw.polygon(screen, SHIELD, self.shieldVerts)
         pg.draw.polygon(screen, HELM, self.swordVerts)
         pg.draw.polygon(screen, TORSO, self.hiltVerts)
         pg.draw.polygon(screen, VISOR, self.helmVerts)
+        pg.draw.circle(screen, RED, (detLegs(100, upperHitBox, player.Xcoord, self.Ycoord)), 5)
+        pg.draw.circle(screen, RED, (detLegs(100, lowerHitBox, player.Xcoord, self.Ycoord)), 5)
 
     def move(self, axis, mod):
         # (Xmov, Ymov) = change
@@ -289,10 +391,10 @@ class Player(object):
         (self.Xcoord, self.Ycoord) = (self.Xcoord + round(Xmod), self.Ycoord + round(Ymod))
         self.detVerts()
 
+    """
     def rotate(self, clock, ang):
         if self.brace is True:
             ang = randint(0, 1)
-            shieldSpace = 40
         elif self.block is True:
             ang = ang // 2
 
@@ -300,11 +402,35 @@ class Player(object):
             ang = -ang
         self.head = (self.head + ang) % 360
         self.rotVerts()
+    """
+    def rotate(self):
+        (mouseX, mouseY) = pg.mouse.get_pos()
+        Xdif = (mouseX - self.Xcoord)
+        Ydif = (self.Ycoord - mouseY)
+        mouseDirect = relHead(Xdif, Ydif)
+        if self.brace is True:
+            headDif = ((mouseDirect - self.head) // 2)
+        elif self.block is True:
+            headDif = ((mouseDirect - self.head) // 5)
+        else:
+            headDif = (mouseDirect - self.head)
+
+        self.head = (self.head + headDif) % 360
+        self.rotVerts()
 
     def slash(self, targets):
-        X = (self.Xcoord - 15)
-        Y = (self.Ycoord - 15)
-        print(self.slashCount)
+        X = (self.Xcoord - 0)
+        Y = (self.Ycoord + 0)
+
+        upperHitBox = (self.head + 35) % 360
+        lowerHitBox = (self.head - 35) % 360
+        print("upperhit", upperHitBox)
+        print("lowerhit", lowerHitBox)
+        print("head", self.head)
+
+        # print(self.slashCount)
+        if targets:
+            print("Hit!")
         slashRad = math.radians(self.slashCount * 12)
 
         self.swordHead = (self.head + 40 + (- math.cos(slashRad) * 40)) % 360
@@ -357,8 +483,8 @@ class Player(object):
         self.detVerts()
 
     def detVerts(self):
-        X = (self.Xcoord - 15)
-        Y = (self.Ycoord - 15)
+        X = (self.Xcoord + 0)
+        Y = (self.Ycoord + 0)
         self.helmVerts = shiftVerts(self.locHelmVerts, X, Y)
         self.shieldVerts = shiftVerts(self.locShieldVerts, X, Y)
         self.swordVerts = shiftVerts(self.locSwordVerts, X, Y)
@@ -380,6 +506,12 @@ def shiftVerts(local, X, Y):
     for vert in local:
         newVerts.append((vert[0] + X, vert[1] + Y))
     return newVerts
+
+
+def distForm(Xval, Yval):
+    dist = ((Xval ** 2) + (Yval ** 2)) ** (1/2)
+
+    return dist
 
 
 player = Player(150, 150, screen)
