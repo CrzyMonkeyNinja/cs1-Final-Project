@@ -4,6 +4,8 @@ import pygame as pg
 import math
 from random import randint
 
+"""mouse-based turning finished; mouse button input added (left and right mouse replaceing k and i); hit detection mostly good, anomaly yet to be investigated"""
+
 ################################################################
 
 # Define the colors we will use in RGB format
@@ -52,8 +54,8 @@ class Target(object):
             self.alive = False
 
         if self.alive is True:
-            pg.draw.circle(screen, BLUE, [self.Xcoord, self.Ycoord], 30)
-            #dw.draw(image, (self.Xcoord + 20, self.Ycoord + 20))
+            # pg.draw.circle(screen, BLUE, [self.Xcoord, self.Ycoord], 30)
+            dw.draw(image, (self.Xcoord + 20, self.Ycoord + 20))
 
 
 def relHead(Xdif, Ydif):
@@ -91,8 +93,8 @@ def relHead(Xdif, Ydif):
 
         XoverY = (abs(Ydif) / abs(Xdif))
         targetDirect = (math.atan(XoverY))
-        # targetHeading = 270 + math.degrees((math.atan(XoverY)))
-        targetHeading = -(90 - math.degrees(targetDirect))
+        targetHeading = 270 + math.degrees(targetDirect)
+        # targetHeading = -(90 - math.degrees(targetDirect))
 
     elif Xdif > 0 and Ydif < 0:  # quadrent IV
 
@@ -104,8 +106,8 @@ def relHead(Xdif, Ydif):
 
         XoverY = (abs(Ydif) / abs(Xdif))
         targetDirect = (math.atan(XoverY))
-        # targetHeading = 270 - math.degrees((math.atan(XoverY)))
-        targetHeading = -(90 + math.degrees(targetDirect))
+        targetHeading = 270 - math.degrees(targetDirect)
+        # targetHeading = -(90 + math.degrees(targetDirect))
 
     elif Xdif == 0 and Ydif == 0:  # no distance between self and target
 
@@ -113,7 +115,8 @@ def relHead(Xdif, Ydif):
 
     else:
         print("EVERYTHING EXPLODES")
-    print("targetHeading", targetHeading)
+
+    # print("targetHeading", targetHeading)
 
     return targetHeading
 
@@ -201,24 +204,21 @@ def detLegs(hyp, ang, X=0, Y=0):
 
 def getTargets(entities):
     player = entities[0]
-    upperHitBox = (player.head + 35) % 360
-    lowerHitBox = (player.head - 35) % 360
     targets = []
 
     for ent in entities:
         Xdif = (ent.Xcoord - player.Xcoord)
         Ydif = (player.Ycoord - ent.Ycoord)
-        targetDirect = relHead(Xdif, Ydif)
-        print(targetDirect)
+        targetDirect = (relHead(Xdif, Ydif) - player.head) % 360
         targetDist = distForm(Xdif, Ydif)
+        print(targetDirect)
 
         # firstly the target must be near enough to strike, secondly
         # it must be within a certain cone of damage in front of the player
         # if (targetDist < 100) and ((0 < targetDirect <
         # upperHitBox)or(lowerHitBox < targetDirect < 360)):
-        if (targetDist < 100) and (abs(targetDirect) < 35):
+        if (targetDist < 120) and ((0 < targetDirect < 30) or (325 < targetDirect < 360)):
             targets.append(ent)
-            print(ent)
             print("HITHITHITHITHITHITHITHITHIT")
     return targets
 
@@ -231,14 +231,16 @@ class State(object):
         self.count = 0
 
     def update(self):
+        # print(pg.mouse.get_pressed())
         self.count += 1
         player = self.entities[0]
         player.rotate()
+        mouseState = pg.mouse.get_pressed()
 
-        functDict = {119: (player.move, False, 5),    # W
-                     97: (player.move, True, -5),     # A
-                     115: (player.move, False, -5),   # S
-                     100: (player.move, True, 5)}     # D
+        functDict = {119: (player.move, False, 3),    # W
+                     97: (player.move, True, -3),     # A
+                     115: (player.move, False, -3),   # S
+                     100: (player.move, True, 3)}     # D
                      # 106: (player.rotate, False, 5),  # J
                      # 108: (player.rotate, True, 5)}   # L
         """
@@ -251,11 +253,13 @@ class State(object):
                 # player.move(functDict[key])
                 functDict[key][0](functDict[key][1], functDict[key][2])
 
-        if (107 in self.keys) and (32 in self.keys) and (99 not in self.keys):
+        # if ((mouseState[0] is 1) or (107 in self.keys)) and (32 in
+        # self.keys) and (99 not in self.keys):
+        if  (32 in self.keys) and (mouseState[0] is 0) and (107 not in self.keys) and (99 not in self.keys):
             player.block = True
             player.brace = False
             player.rotVerts()
-        elif (107 in self.keys) and (32 in self.keys) and (99 in self.keys):
+        elif ((mouseState[0] is 1) or(107 in self.keys)) and (32 in self.keys) and (99 in self.keys):
             player.brace = True
             player.rotVerts()
         else:
@@ -265,7 +269,7 @@ class State(object):
             player.brace = False
             # player.rotVerts()
 
-        if (107 in self.keys) and (32 not in self.keys) and (99 not in self.keys):
+        if ((mouseState[0]) or (107 in self.keys)) and (32 not in self.keys) and (99 not in self.keys):
             player.slashDo = True
 
             # Damage against entities is only considered in the middle
@@ -372,8 +376,8 @@ class Player(object):
         pg.draw.polygon(screen, HELM, self.swordVerts)
         pg.draw.polygon(screen, TORSO, self.hiltVerts)
         pg.draw.polygon(screen, VISOR, self.helmVerts)
-        pg.draw.circle(screen, RED, (detLegs(100, upperHitBox, player.Xcoord, self.Ycoord)), 5)
-        pg.draw.circle(screen, RED, (detLegs(100, lowerHitBox, player.Xcoord, self.Ycoord)), 5)
+        pg.draw.circle(screen, RED, (detLegs(120, upperHitBox, player.Xcoord, self.Ycoord)), 5)
+        pg.draw.circle(screen, RED, (detLegs(120, lowerHitBox, player.Xcoord, self.Ycoord)), 5)
 
     def move(self, axis, mod):
         # (Xmov, Ymov) = change
@@ -386,6 +390,8 @@ class Player(object):
             mod = 0
         elif self.block is True:
             mod = mod // 2
+        else:
+            mod = mod
 
         (Xmod, Ymod) = detLegs(mod, ang)
         (self.Xcoord, self.Ycoord) = (self.Xcoord + round(Xmod), self.Ycoord + round(Ymod))
@@ -407,13 +413,19 @@ class Player(object):
         (mouseX, mouseY) = pg.mouse.get_pos()
         Xdif = (mouseX - self.Xcoord)
         Ydif = (self.Ycoord - mouseY)
-        mouseDirect = relHead(Xdif, Ydif)
-        if self.brace is True:
-            headDif = ((mouseDirect - self.head) // 2)
-        elif self.block is True:
-            headDif = ((mouseDirect - self.head) // 5)
+        mouseDirect =  (relHead(Xdif, Ydif) - self.head) % 360
+
+        if mouseDirect > 180:
+            headDif = mouseDirect - 360
         else:
-            headDif = (mouseDirect - self.head)
+            headDif = mouseDirect
+
+        if self.brace is True:
+            headDif = headDif // 30
+        elif self.block is True:
+            headDif = headDif // 10
+        else:
+            headDif = headDif // 2
 
         self.head = (self.head + headDif) % 360
         self.rotVerts()
@@ -422,15 +434,14 @@ class Player(object):
         X = (self.Xcoord - 0)
         Y = (self.Ycoord + 0)
 
-        upperHitBox = (self.head + 35) % 360
-        lowerHitBox = (self.head - 35) % 360
-        print("upperhit", upperHitBox)
-        print("lowerhit", lowerHitBox)
-        print("head", self.head)
-
         # print(self.slashCount)
-        if targets:
+        if targets and (self.slashCount % 30 is 0):
             print("Hit!")
+            for targ in targets:
+                try:
+                    target.health -= 5
+                except AttributeError:
+                    pass
         slashRad = math.radians(self.slashCount * 12)
 
         self.swordHead = (self.head + 40 + (- math.cos(slashRad) * 40)) % 360
