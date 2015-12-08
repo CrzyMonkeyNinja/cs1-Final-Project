@@ -32,12 +32,13 @@ target4 = dw.loadImage("target4.png")
 target5 = dw.loadImage("target5.png")
 
 
-class Target(object):
+class Turret(object):
     def __init__(self, X, Y, screen):
         self.Xcoord = X
         self.Ycoord = Y
         self.health = 100
         self.alive = True
+        self.tick = randint(0, 59)
 
     def disp(self, screen):
         if self.health >= 80:
@@ -55,7 +56,29 @@ class Target(object):
 
         if self.alive is True:
             # pg.draw.circle(screen, BLUE, [self.Xcoord, self.Ycoord], 30)
-            dw.draw(image, (self.Xcoord + 20, self.Ycoord + 20))
+            dw.draw(image, (self.Xcoord - 20, self.Ycoord - 20))
+
+    def shoot(self, player):
+        Xdif = (player.Xcoord - self.Xcoord)
+        Ydif = (self.Ycoord - player.Ycoord)
+        shootAngle = relHead(Xdif, Ydif)
+        newShot = Shot(self.Xcoord, self.Ycoord, shootAngle, 5)
+
+        return newShot
+
+
+class Shot(object):
+    def __init__(self, Xcoord, Ycoord, angle, speed):
+        self.Xcoord = Xcoord
+        self.Ycoord = Ycoord
+        self.angle = angle
+        self.speed = speed
+
+    def disp(self):
+        pg.draw.circle(screen, BLUE, [self.Xcoord, self.Ycoord], 5)
+
+    def move(self):
+        (self.Xcoord, self.Ycoord) = detLegs(self.speed, self.angle, self.Xcoord, self.Ycoord)
 
 
 def relHead(Xdif, Ydif):
@@ -202,11 +225,10 @@ def detLegs(hyp, ang, X=0, Y=0):
     return (round(X), round(Y))
 
 
-def getTargets(entities):
-    player = entities[0]
-    targets = []
+def getTargets(player, targets):
+    targetsUse = []
 
-    for ent in entities:
+    for ent in targets:
         Xdif = (ent.Xcoord - player.Xcoord)
         Ydif = (player.Ycoord - ent.Ycoord)
         targetDirect = (relHead(Xdif, Ydif) - player.head) % 360
@@ -218,22 +240,24 @@ def getTargets(entities):
         # if (targetDist < 100) and ((0 < targetDirect <
         # upperHitBox)or(lowerHitBox < targetDirect < 360)):
         if (targetDist < 120) and ((0 < targetDirect < 30) or (325 < targetDirect < 360)):
-            targets.append(ent)
+            targetsUse.append(ent)
             print("HITHITHITHITHITHITHITHITHIT")
-    return targets
+    return targetsUse
 
 
 class State(object):
-    def __init__(self, screen, entities):
+    def __init__(self, screen, player, turrets):
         self.screen = screen
-        self.entities = entities
+        self.player = player
+        self.turrets = turrets
+        self.shots = []
         self.keys = []
         self.count = 0
 
     def update(self):
         # print(pg.mouse.get_pressed())
         self.count += 1
-        player = self.entities[0]
+        player = self.player
         player.rotate()
         mouseState = pg.mouse.get_pressed()
 
@@ -247,6 +271,9 @@ class State(object):
         106:  # I
         107:  # K
         """
+
+        for shot in self.shots:
+            shot.move()
 
         for key in self.keys:
             if key in functDict:
@@ -277,10 +304,10 @@ class State(object):
             # floating-point numbers aren't required to keep track of
             # health that decreases by very small increments every frame
             if (player.slashCount % 30) == 0:
-                targets = getTargets(self.entities)
+                targets = getTargets(player, self.turrets)
             else:
                 # targets = []
-                targets = getTargets(self.entities)
+                targets = getTargets(player, self.turrets)
 
             player.slash(targets)
         else:
@@ -293,19 +320,21 @@ class State(object):
             player.rotVerts()
             player.needRot = False
 
-        if (self.count % 10) == 0:
-            # self.entities[1].health -= 1
-            pass
+        for tur in self.turrets:
+            if (tur.alive is True) and (tur.tick == (self.count % 60)):
+                self.shots.append(tur.shoot(player))
 
     def display(self):
         dw.fill(dw.black)
-        for ent in self.entities:
+        self.player.disp(self.screen)
+        for ent in self.turrets:
             ent.disp(self.screen)
+        for shot in self.shots:
+            shot.disp()
 
     def end(self):
         result = False
-        for ent in self.entities:
-            if ((ent.Xcoord < 0) or (ent.Xcoord > width)) or ((ent.Ycoord < 0) or (ent.Ycoord > height)):
+        if ((self.player.Xcoord < 0) or (self.player.Xcoord > width)) or ((self.player.Ycoord < 0) or (self.player.Ycoord > height)):
                 result = True
 
         return result
@@ -439,7 +468,7 @@ class Player(object):
             print("Hit!")
             for targ in targets:
                 try:
-                    target.health -= 5
+                    targ.health -= 5
                 except AttributeError:
                     pass
         slashRad = math.radians(self.slashCount * 12)
@@ -526,8 +555,9 @@ def distForm(Xval, Yval):
 
 
 player = Player(150, 150, screen)
-target = Target(500, 500, screen)
-state = State(screen, [player, target])
+turret1 = Turret(500, 500, screen)
+turret2 = Turret(250, 250, screen)
+state = State(screen, player, [turret1, turret2])
 
 state.run()
 
