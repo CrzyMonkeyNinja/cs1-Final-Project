@@ -75,7 +75,7 @@ class Shot(object):
         self.speed = speed
 
     def disp(self):
-        pg.draw.circle(screen, BLUE, [self.Xcoord, self.Ycoord], 5)
+        pg.draw.circle(screen, BLUE, [round(self.Xcoord), round(self.Ycoord)], 5)
 
     def move(self):
         (self.Xcoord, self.Ycoord) = detLegs(self.speed, self.angle, self.Xcoord, self.Ycoord)
@@ -222,7 +222,7 @@ def detLegs(hyp, ang, X=0, Y=0):
         print("ang = ", ang)
         print("\n!!!!!!!!!!\n")
 
-    return (round(X), round(Y))
+    return (X, Y)
 
 
 def getTargets(player, targets):
@@ -275,6 +275,8 @@ class State(object):
         for shot in self.shots:
             shot.move()
 
+        player.collide(self.shots)
+
         for key in self.keys:
             if key in functDict:
                 # player.move(functDict[key])
@@ -321,6 +323,8 @@ class State(object):
             player.needRot = False
 
         for tur in self.turrets:
+            if tur.alive is False:
+                self.turrets.remove(tur)
             if (tur.alive is True) and (tur.tick == (self.count % 60)):
                 self.shots.append(tur.shoot(player))
 
@@ -335,7 +339,11 @@ class State(object):
     def end(self):
         result = False
         if ((self.player.Xcoord < 0) or (self.player.Xcoord > width)) or ((self.player.Ycoord < 0) or (self.player.Ycoord > height)):
-                result = True
+            result = True
+        elif self.player.health <= 0:
+            result = True
+        elif not self.turrets:
+            result = True
 
         return result
 
@@ -398,15 +406,19 @@ class Player(object):
         # Draw a circle
         upperHitBox = (self.head + 35) % 360
         lowerHitBox = (self.head - 35) % 360
+        (upperBoxX, upperBoxY) = (detLegs(120, round(upperHitBox), round(self.Xcoord), round(self.Ycoord)))
+        (lowerBoxX, lowerBoxY) = (detLegs(120, round(lowerHitBox), round(self.Xcoord), round(self.Ycoord)))
 
-        pg.draw.circle(screen, TORSO, [self.Xcoord, self.Ycoord], 30)
-        pg.draw.circle(screen, HELM, [self.Xcoord, self.Ycoord], 20)
+        pg.draw.circle(screen, TORSO, [round(self.Xcoord), round(self.Ycoord)], 30)
+        pg.draw.circle(screen, HELM, [round(self.Xcoord), round(self.Ycoord)], 20)
         pg.draw.polygon(screen, SHIELD, self.shieldVerts)
         pg.draw.polygon(screen, HELM, self.swordVerts)
         pg.draw.polygon(screen, TORSO, self.hiltVerts)
         pg.draw.polygon(screen, VISOR, self.helmVerts)
-        pg.draw.circle(screen, RED, (detLegs(120, upperHitBox, player.Xcoord, self.Ycoord)), 5)
-        pg.draw.circle(screen, RED, (detLegs(120, lowerHitBox, player.Xcoord, self.Ycoord)), 5)
+        pg.draw.circle(screen, RED, (round(upperBoxX), round(upperBoxY)), 5)
+        pg.draw.circle(screen, RED, (round(lowerBoxX), round(lowerBoxY)), 5)
+        pg.draw.polygon(screen, RED, ((50, 750), (50, 700), (550, 700), (550, 750)))
+        pg.draw.polygon(screen, GREEN, ((50, 750), (50, 700), ((self.health * 5) + 50, 700), ((self.health * 5) + 50, 750)))
 
     def move(self, axis, mod):
         # (Xmov, Ymov) = change
@@ -423,7 +435,7 @@ class Player(object):
             mod = mod
 
         (Xmod, Ymod) = detLegs(mod, ang)
-        (self.Xcoord, self.Ycoord) = (self.Xcoord + round(Xmod), self.Ycoord + round(Ymod))
+        (self.Xcoord, self.Ycoord) = (self.Xcoord + Xmod, self.Ycoord + Ymod)
         self.detVerts()
 
     """
@@ -458,6 +470,26 @@ class Player(object):
 
         self.head = (self.head + headDif) % 360
         self.rotVerts()
+
+    def collide(self, shots):
+        for shot in shots:
+            Xdif = (shot.Xcoord - self.Xcoord)
+            Ydif = (self.Ycoord - shot.Ycoord)
+            dist = distForm(Xdif, Ydif)
+            targetDirect = (relHead(Xdif, Ydif) - player.head) % 360
+            if (dist < 25) and (self.block is False) and (self.brace is False):
+                shots.remove(shot)
+                print("they don got ye")
+                self.health -= 5
+                print("health:", self.health)
+            elif (dist < 45) and ((self.block is True) or (self.brace is True)) and ((0 < targetDirect < 30) or (325 < targetDirect < 360)):
+                shots.remove(shot)
+            elif (dist < 25) and ((self.block is True) or (self.brace is True)) and not ((0 < targetDirect < 30) or (325 < targetDirect < 360)):
+                shots.remove(shot)
+                print("they don got ye")
+                self.health -= 5
+                print("health:", self.health)
+
 
     def slash(self, targets):
         X = (self.Xcoord - 0)
