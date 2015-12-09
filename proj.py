@@ -33,13 +33,19 @@ target5 = dw.loadImage("target5.png")
 
 
 class Turret(object):
-    def __init__(self, X, Y, screen, kind):
+    def __init__(self, X, Y, screen, kind, face=0):
         self.Xcoord = X
         self.Ycoord = Y
         self.health = 100
         self.alive = True
         self.kind = kind
-        self.tick = randint(0, 59)
+        self.face = face
+        if (self.kind == "norm") or (self.kind == "direct"):
+            self.tick = randint(0, 59)
+            self.mod = 60
+        elif (self.kind == "big") or (self.kind == "tracker"):
+            self.tick = randint(60, 119)
+            self.mod = 120
 
     def disp(self, screen):
         if self.health >= 80:
@@ -67,6 +73,10 @@ class Turret(object):
             newShot = NormalShot(self.Xcoord, self.Ycoord, shootAngle)
         elif self.kind == "big":
             newShot = BigShot(self.Xcoord, self.Ycoord, shootAngle)
+        elif self.kind == "direct":
+            newShot = NormalShot(self.Xcoord, self.Ycoord, self.face)
+        elif self.kind == "tracker":
+            newShot = TrackShot(self.Xcoord, self.Ycoord, shootAngle, player)
 
         return newShot
 
@@ -86,7 +96,7 @@ class NormalShot(object):
 
     def hit(self, target, block=False, brace=False):
         if (block is False) and (brace is False):
-            player.health -= 1
+            player.damage(1)
 
 
 class BigShot(object):
@@ -105,12 +115,40 @@ class BigShot(object):
     def hit(self, target, block=False, brace=False):
         print("they don got ye")
         if (block is False) and (brace is False):
-            player.health -= 5
+            player.damage(5)
             (player.Xcoord, player.Ycoord) = detLegs(70, self.angle, player.Xcoord, player.Ycoord)
 
         elif (block is True) and (brace is False):
-            player.health -= 1
+            player.damage(1)
             (player.Xcoord, player.Ycoord) = detLegs(30, self.angle, player.Xcoord, player.Ycoord)
+
+
+class TrackShot(object):
+    def __init__(self, Xcoord, Ycoord, angle, target):
+        self.Xcoord = Xcoord
+        self.Ycoord = Ycoord
+        self.angle = angle
+        self.target = target
+        self.speed = 7
+        self.clock = 0
+
+    def disp(self):
+        pg.draw.circle(screen, GREEN, [round(self.Xcoord), round(self.Ycoord)], 7)
+
+    def move(self):
+        self.clock += 1
+        if (self.clock % 3) == 0:
+            Xdif = (self.target.Xcoord - self.Xcoord)
+            Ydif = (self.Ycoord - self.target.Ycoord)
+            shootAngle = relHead(Xdif, Ydif)
+        else:
+            shootAngle = self.angle
+        (self.Xcoord, self.Ycoord) = detLegs(self.speed, shootAngle, self.Xcoord, self.Ycoord)
+
+    def hit(self, target, block=False, brace=False):
+        if (block is False) and (brace is False):
+            player.damage(1)
+
 
 
 def relHead(Xdif, Ydif):
@@ -265,7 +303,6 @@ def getTargets(player, targets):
         Ydif = (player.Ycoord - ent.Ycoord)
         targetDirect = (relHead(Xdif, Ydif) - player.head) % 360
         targetDist = distForm(Xdif, Ydif)
-        print(targetDirect)
 
         # firstly the target must be near enough to strike, secondly
         # it must be within a certain cone of damage in front of the player
@@ -273,7 +310,9 @@ def getTargets(player, targets):
         # upperHitBox)or(lowerHitBox < targetDirect < 360)):
         if (targetDist < 120) and ((0 < targetDirect < 30) or (325 < targetDirect < 360)):
             targetsUse.append(ent)
-            print("HITHITHITHITHITHITHITHITHIT")
+            pg.draw.circle(screen, RED, [round(ent.Xcoord), round(ent.Ycoord)], 25, 5)
+            pg.display.update()
+
     return targetsUse
 
 
@@ -307,7 +346,8 @@ class State(object):
         for shot in self.shots:
             shot.move()
 
-        player.collide(self.shots)
+        if player.hurtCool > 15:
+            player.collide(self.shots)
 
         for key in self.keys:
             if key in functDict:
@@ -357,7 +397,7 @@ class State(object):
         for tur in self.turrets:
             if tur.alive is False:
                 self.turrets.remove(tur)
-            if (tur.alive is True) and (tur.tick == (self.count % 60)):
+            if (tur.alive is True) and (tur.tick == (self.count % tur.mod)):
                 self.shots.append(tur.shoot(player))
 
     def display(self):
@@ -427,6 +467,8 @@ class Player(object):
         self.Ycoord = Ycoord
         self.head = 0
         self.health = 100
+        self.hurt = False
+        self.hurtCool = 0
         self.needRot = False
         self.block = False
         self.brace = False
@@ -438,12 +480,17 @@ class Player(object):
         self.detVerts()
 
     def disp(self, screen):
+        self.hurtCool += 1
+        if self.hurtCool > 15:
+            self.hurt = False
         # Draw a circle
         upperHitBox = (self.head + 35) % 360
         lowerHitBox = (self.head - 35) % 360
         (upperBoxX, upperBoxY) = (detLegs(120, round(upperHitBox), round(self.Xcoord), round(self.Ycoord)))
         (lowerBoxX, lowerBoxY) = (detLegs(120, round(lowerHitBox), round(self.Xcoord), round(self.Ycoord)))
 
+        if (self.hurt is True):
+            pg.draw.circle(screen, RED, [round(self.Xcoord), round(self.Ycoord)], 35, 5)
         pg.draw.circle(screen, TORSO, [round(self.Xcoord), round(self.Ycoord)], 30)
         pg.draw.circle(screen, HELM, [round(self.Xcoord), round(self.Ycoord)], 20)
         pg.draw.polygon(screen, SHIELD, self.shieldVerts)
@@ -521,6 +568,11 @@ class Player(object):
             elif (dist < 25) and not ((0 < targetDirect < 30) or (325 < targetDirect < 360)):
                 shot.hit(self)
                 shots.remove(shot)
+
+    def damage(self, hurt):
+        self.health -= hurt
+        self.hurt = True
+        self.hurtCool = 0
 
 
     def slash(self, targets):
@@ -619,18 +671,23 @@ def distForm(Xval, Yval):
 
 
 player = Player(150, 150, screen)
-turret1 = Turret(500, 500, screen, "norm")
-turret2 = Turret(250, 250, screen, "big")
+turret1 = Turret(500, 500, screen, "direct", randint(0, 359))
+turret2 = Turret(250, 250, screen, "tracker")
 
 turrets = []
 
 for count in "123":
-    turret = Turret(randint(100, 1100), randint(100, 700), screen, "norm")
-    turrets.append(turret)
+    turret1 = Turret(randint(100, 1100), randint(100, 700), screen, "direct", randint(0, 359))
+    turret3 = Turret(randint(100, 1100), randint(100, 700), screen, "norm", randint(0, 359))
+    turrets.append(turret1)
+    turrets.append(turret2)
+    turrets.append(turret3)
 
 for count in "12":
-    turret = Turret(randint(100, 1100), randint(100, 700), screen, "big")
-    turrets.append(turret)
+    turret1 = Turret(randint(100, 1100), randint(100, 700), screen, "tracker")
+    turret2 = Turret(randint(100, 1100), randint(100, 700), screen, "big")
+    turrets.append(turret1)
+    turrets.append(turret2)
 
 state = State(screen, player, turrets)
 
