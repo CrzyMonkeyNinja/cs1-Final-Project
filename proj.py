@@ -137,13 +137,17 @@ class TrackShot(object):
 
     def move(self):
         self.clock += 1
-        if (self.clock % 3) == 0:
-            Xdif = (self.target.Xcoord - self.Xcoord)
-            Ydif = (self.Ycoord - self.target.Ycoord)
-            shootAngle = relHead(Xdif, Ydif)
+        Xdif = (self.target.Xcoord - self.Xcoord)
+        Ydif = (self.Ycoord - self.target.Ycoord)
+        targetDirect = relHead(Xdif, Ydif)
+        headVary = (targetDirect - self.angle) % 360
+        if (0 <= headVary <= 5) or (355 <= headVary < 360):
+            self.angle = targetDirect
+        elif (0 < headVary < 5):
+            self.angle = (self.angle + 5) % 360
         else:
-            shootAngle = self.angle
-        (self.Xcoord, self.Ycoord) = detLegs(self.speed, shootAngle, self.Xcoord, self.Ycoord)
+            self.angle = (self.angle - 5) % 360
+        (self.Xcoord, self.Ycoord) = detLegs(self.speed, self.angle, self.Xcoord, self.Ycoord)
 
     def hit(self, target, block=False, brace=False):
         if (block is False) and (brace is False):
@@ -344,10 +348,13 @@ class State(object):
         """
 
         for shot in self.shots:
-            shot.move()
+            if ((shot.Xcoord < 0) or (shot.Xcoord > width)) or ((shot.Ycoord < 0) or (shot.Ycoord > height)):
+                self.shots.remove(shot)
+            else:
+                shot.move()
 
-        if player.hurtCool > 15:
-            player.collide(self.shots)
+
+        player.collide(self.shots)
 
         for key in self.keys:
             if key in functDict:
@@ -561,12 +568,15 @@ class Player(object):
             targetDirect = (relHead(Xdif, Ydif) - player.head) % 360
             if (dist < 25) and (self.block is False) and (self.brace is False):
                 shots.remove(shot)
-                shot.hit(self)
+                if self.hurtCool > 15:
+                    shot.hit(self)
             elif (dist < 45) and ((0 < targetDirect < 30) or (325 < targetDirect < 360)):
-                shot.hit(self, self.block, self.brace)
+                if self.hurtCool > 15:
+                    shot.hit(self, self.block, self.brace)
                 shots.remove(shot)
             elif (dist < 25) and not ((0 < targetDirect < 30) or (325 < targetDirect < 360)):
-                shot.hit(self)
+                if self.hurtCool > 15:
+                    shot.hit(self)
                 shots.remove(shot)
 
     def damage(self, hurt):
